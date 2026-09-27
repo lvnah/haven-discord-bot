@@ -1,6 +1,18 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const sqlite3 = require('sqlite3').verbose();
+const http = require('http');
 
+// 1. Petit serveur HTTP pour que Render valide le Web Service
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Haven Bot is running!\n');
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Serveur web HTTP à l'écoute sur le port ${PORT}`);
+});
+
+// 2. Initialisation du Bot Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
