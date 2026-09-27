@@ -38,21 +38,19 @@ let activeQueue = [];
 client.once('clientReady', () => {
     console.log(`Bot connecté en tant que ${client.user.tag} !`);
 });
-// Rétrocompatibilité console v14
 client.once('ready', () => {
     if (!client.user) return;
     console.log(`Bot connecté (ready) en tant que ${client.user.tag} !`);
 });
 
-// Commandes de configuration des deux salons séparés
+// Commandes d'installation des salons
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // 1. Panneau pour créer son compte
     if (message.content === '!setup-register') {
         const embed = new EmbedBuilder()
             .setTitle('📝 INSCRIPTION — HAVEN LADDER')
-            .setDescription('Bienvenue ! Clique sur le bouton ci-dessous pour créer ton compte joueur indépendant sur la plateforme.')
+            .setDescription('Clique sur le bouton ci-dessous pour créer ton compte joueur indépendant.')
             .setColor(0x3498DB);
 
         const row = new ActionRowBuilder()
@@ -64,11 +62,10 @@ client.on('messageCreate', async message => {
         await message.delete();
     }
 
-    // 2. Panneau pour la file d'attente 5v5
     if (message.content === '!setup-queue') {
         const embed = new EmbedBuilder()
             .setTitle('🎮 FILE D\'ATTENTE 5v5 — HAVEN LADDER')
-            .setDescription('Prêt à lancer une partie ? Rejoins la file d\'attente ci-dessous.')
+            .setDescription('Rejoins ou quitte la file d\'attente ci-dessous.')
             .setColor(0x2ECC71)
             .addFields({ name: '👥 Joueurs dans la file', value: `${activeQueue.length} / 10`, inline: true });
 
@@ -83,7 +80,7 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Gestion des clics sur les boutons
+// Gestion propre des boutons sans spam
 client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
     const discordId = interaction.user.id;
@@ -102,11 +99,22 @@ client.on('interactionCreate', async interaction => {
 
     else if (interaction.customId === 'join_queue') {
         db.get(`SELECT * FROM bot_users WHERE discord_id = ?`, [discordId], async (err, row) => {
-            if (!row) return interaction.reply({ content: `❌ Tu dois d'abord créer ton compte ! Va dans le salon d'inscription pour t'enregistrer.`, ephemeral: true });
+            if (!row) return interaction.reply({ content: `❌ Tu dois d'abord créer ton compte dans le salon d'inscription !`, ephemeral: true });
             if (activeQueue.includes(discordId)) return interaction.reply({ content: `⚠️ Tu es déjà dans la file d'attente !`, ephemeral: true });
 
             activeQueue.push(discordId);
-            await interaction.reply({ content: `✅ Tu as rejoint la file d'attente ! (${activeQueue.length}/10)`, ephemeral: true });
+            
+            // Met à jour le compteur sur le message principal proprement (évite de renvoyer un nouveau message)
+            const newEmbed = new EmbedBuilder()
+                .setTitle('🎮 FILE D\'ATTENTE 5v5 — HAVEN LADDER')
+                .setDescription('Rejoins ou quitte la file d\'attente ci-dessous.')
+                .setColor(0x2ECC71)
+                .addFields({ name: '👥 Joueurs dans la file', value: `${activeQueue.length} / 10`, inline: true });
+
+            await interaction.update({ embeds: [newEmbed] });
+
+            // Envoie une confirmation éphémère discrète qui ne pollue pas
+            await interaction.followUp({ content: `✅ Tu as rejoint la file d'attente ! (${activeQueue.length}/10)`, ephemeral: true });
 
             if (activeQueue.length >= 10) {
                 const playersMatch = activeQueue.splice(0, 10);
@@ -125,7 +133,16 @@ client.on('interactionCreate', async interaction => {
         const index = activeQueue.indexOf(discordId);
         if (index > -1) {
             activeQueue.splice(index, 1);
-            return interaction.reply({ content: `❌ Tu as quitté la file d'attente. (${activeQueue.length}/10)`, ephemeral: true });
+
+            // Met à jour le compteur sur le panneau principal
+            const newEmbed = new EmbedBuilder()
+                .setTitle('🎮 FILE D\'ATTENTE 5v5 — HAVEN LADDER')
+                .setDescription('Rejoins ou quitte la file d\'attente ci-dessous.')
+                .setColor(0x2ECC71)
+                .addFields({ name: '👥 Joueurs dans la file', value: `${activeQueue.length} / 10`, inline: true });
+
+            await interaction.update({ embeds: [newEmbed] });
+            await interaction.followUp({ content: `❌ Tu as quitté la file d'attente. (${activeQueue.length}/10)`, ephemeral: true });
         } else {
             return interaction.reply({ content: `⚠️ Tu n'étais pas dans la file d'attente.`, ephemeral: true });
         }
